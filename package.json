@@ -5,21 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
     "next": "15.1.4",
     "react": "^19.0.0-rc",
     "react-dom": "^19.0.0-rc",
-    "@supabase/supabase-js": "^2.45.4",
-    "date-fns": "^4.1.0",
-    "lucide-react": "^0.454.0",
-    "zod": "^3.23.8",
-    "axios": "^1.7.8",
-    "framer-motion": "^11.11.9",
-    "tailwind-merge": "^2.5.2",
-    "clsx": "^2.1.1"
+    "groq-sdk": "^0.37.0",
+    "lucide-react": "^0.454.0"
   },
   "devDependencies": {
     "@types/node": "^22",
