@@ -41,13 +41,15 @@ export default function SuperAdmin() {
     setLoading(false);
   };
 
-  const criarNovoSalao = async () => {
-    if (!nomeSalao || !subdominio || !emailDono) {
-      alert('Preencha nome do salão, subdomínio e email do dono');
-      return;
-    }
+const criarNovoSalao = async () => {
+  if (!nomeSalao || !subdominio || !emailDono) {
+    alert('Preencha nome, subdomínio e email do dono');
+    return;
+  }
 
-    const { error } = await supabase
+  try {
+    // 1. Cria o tenant
+    const { data: tenant, error: tenantErr } = await supabase
       .from('tenants')
       .insert({
         name: nomeSalao.trim(),
@@ -55,17 +57,100 @@ export default function SuperAdmin() {
         owner_email: emailDono.trim(),
         phone: telefone.trim() || null,
         status: 'active'
+      })
+      .select()
+      .single();
+
+    if (tenantErr || !tenant) throw tenantErr;
+
+    // 2. Gera senha aleatória (8 caracteres)
+    const senhaAleatoria = Math.random().toString(36).slice(-8);
+
+    // 3. Cria usuário dono
+    const { error: userErr } = await supabase
+      .from('tenant_users')
+      .insert({
+        tenant_id: tenant.id,
+        email: emailDono.trim(),
+        role: 'owner'
       });
 
-    if (error) {
-      console.error('Erro ao criar tenant:', error);
-      alert(`Erro: ${error.message}`);
+    if (userErr) throw userErr;
+
+    // 4. Cria autenticação no Supabase Auth
+    const { error: authErr } = await supabase.auth.admin.createUser({
+      email: emailDono.trim(),
+      password: senhaAleatoria,
+      email_confirm: true
+    });
+
+    if (authErr) throw authErr;
+
+    // 5. Envia email com credenciais
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Lia Beleza <no-reply@liabeleza.app>',
+        to: [emailDono.trim()],
+        subject: 'Bem-vindo ao Lia Beleza SaaS!',
+        html: `
+          <h1>Seu salão foi cadastrado!</h1>
+          <p>Olá! Seu salão <strong>${nomeSalao}</strong> já está ativo na plataforma.</p>
+          <p><strong>Login:</strong> ${emailDono}</p>
+          <p><strong>Senha temporária:</strong> ${senhaAleatoria}</p>
+          <p>Acesse agora: <a href="https://lia-beleza.vercel.app/salao/login">Entrar no painel</a></p>
+          <p>Recomendamos trocar a senha no primeiro acesso.</p>
+          <p>Qualquer dúvida, responda este email ou fale com o suporte.</p>
+          <p>Abraços,<br>Equipe Lia Beleza</p>
+        `
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      console.error('Erro Resend:', err);
+      alert('Salão criado, mas falha ao enviar email. Verifique o console.');
     } else {
-      alert('Novo salão criado com sucesso!');
-      setModalOpen(false);
-      limparFormulario();
-      fetchTenants(); // recarrega a lista
+      alert('Novo salão criado e email enviado com sucesso!');
     }
+
+    setModalOpen(false);
+    limparFormulario();
+    fetchTenants();
+  } catch (err) {
+    console.error('Erro ao criar salão:', err);
+    alert('Erro ao criar salão. Veja o console.');
+  }
+};
+  //  const criarNovoSalao = async () => {
+  //  if (!nomeSalao || !subdominio || !emailDono) {
+    //  alert('Preencha nome do salão, subdomínio e email do dono');
+      //return;
+    //}
+//
+  //  const { error } = await supabase
+    //  .from('tenants')
+      //.insert({
+        //name: nomeSalao.trim(),
+       // subdomain: subdominio.trim().toLowerCase(),
+       // owner_email: emailDono.trim(),
+       // phone: telefone.trim() || null,
+       // status: 'active'
+      //});
+//
+  //  if (error) {
+    //  console.error('Erro ao criar tenant:', error);
+      //alert(`Erro: ${error.message}`);
+   // } else {
+     // alert('Novo salão criado com sucesso!');
+     // setModalOpen(false);
+     // limparFormulario();
+     // fetchTenants(); // recarrega a lista
+   // }
   };
 
   const limparFormulario = () => {
