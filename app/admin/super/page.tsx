@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
+// Client com permissões admin (só para criar usuários)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 type Tenant = {
   id: string;
   name: string;
@@ -77,12 +84,12 @@ export default function SuperAdmin() {
 
       if (userErr) throw userErr;
 
-      // 4. Cria autenticação no Supabase Auth
-      const { error: authErr } = await supabase.auth.admin.createUser({
-        email: emailDono.trim(),
-        password: senhaAleatoria,
-        email_confirm: true
-      });
+     // 4. Cria autenticação no Supabase Auth (usa client admin)
+const { error: authErr } = await supabaseAdmin.auth.admin.createUser({
+  email: emailDono.trim(),
+  password: senhaAleatoria,
+  email_confirm: true
+});
 
       if (authErr) throw authErr;
 
