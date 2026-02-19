@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 type Funcionario = {
   id: string;
@@ -10,48 +11,57 @@ type Funcionario = {
 };
 
 export default function Funcionarios() {
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([
-    { id: '1', name: 'Ana Silva', color: '#FF69B4' },
-    { id: '2', name: 'Julia Mendes', color: '#C084FC' },
-    { id: '3', name: 'Carla Santos', color: '#4ADE80' },
-  ]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Funcionario | null>(null);
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState('#FF69B4');
 
-  const salvarFuncionario = () => {
+  useEffect(() => {
+    fetchFuncionarios();
+  }, []);
+
+  const fetchFuncionarios = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('professionals').select('id, name, color');
+    if (error) console.error(error);
+    else setFuncionarios(data || []);
+    setLoading(false);
+  };
+
+  const salvarFuncionario = async () => {
     if (!nome) return;
 
     if (editing) {
-      setFuncionarios(funcionarios.map(f => 
-        f.id === editing.id ? { ...f, name: nome, color: cor } : f
-      ));
+      const { error } = await supabase
+        .from('professionals')
+        .update({ name: nome, color: cor })
+        .eq('id', editing.id);
+      if (error) alert('Erro ao atualizar');
     } else {
-      setFuncionarios([...funcionarios, {
-        id: Date.now().toString(),
-        name: nome,
-        color: cor
-      }]);
+      const { error } = await supabase
+        .from('professionals')
+        .insert({ name: nome, color: cor });
+      if (error) alert('Erro ao criar');
     }
 
     setModalOpen(false);
     setEditing(null);
-    setNome('');
+    fetchFuncionarios();
   };
 
-  const editar = (func: Funcionario) => {
-    setEditing(func);
-    setNome(func.name);
-    setCor(func.color);
-    setModalOpen(true);
+  const excluir = async (id: string) => {
+    if (!confirm('Excluir funcionário?')) return;
+    const { error } = await supabase.from('professionals').delete().eq('id', id);
+    if (error) alert('Erro ao excluir');
+    else fetchFuncionarios();
   };
 
-  const excluir = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este funcionário?')) {
-      setFuncionarios(funcionarios.filter(f => f.id !== id));
-    }
-  };
+  // ... (o resto do modal e tabela continua igual, só chame fetchFuncionarios após ações)
+  // Mantenha o return com loading, modal e tabela como estava
+  // Substitua o setFuncionarios fake por fetchFuncionarios() nas ações
+}
 
   return (
     <div className="p-8">
