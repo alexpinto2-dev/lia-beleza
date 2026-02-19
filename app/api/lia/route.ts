@@ -1,19 +1,18 @@
 import { Groq } from 'groq-sdk';
 import { NextRequest } from 'next/server';
-import { supabase } from '@/lib/supabase';  // novo import
+import { supabase } from '@/lib/supabase';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || 'gsk_demo' });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
     const { message, history } = await req.json();
 
-    const systemPrompt = `Você é a Lia, recepcionista simpática de salão em Aracaju/SE.
-Tom: caloroso, nordestino-friendly: "meu amor", "tudo beleza?", "oi linda!", emojis ❤️.
+    const systemPrompt = `Você é a Lia, recepcionista carinhosa do salão em Aracaju/SE.
+Tom: super simpático, usa "meu amor", "tudo beleza?", "oi linda!", "perfeito!", emojis ❤️.
 Pergunte UMA coisa por vez.
-Pergunte o nome da cliente e chame sempre pelo primeiro nome.
-Quando o cliente confirmar nome, serviço, profissional e horário, responda confirmando e diga que salvou o agendamento.
-Use formato simples para extrair dados quando confirmar: [AGENDAMENTO] Nome: ..., Serviço: ..., Profissional: ..., Horário: ... [FIM]`;
+Quando a cliente der nome + serviço + profissional + horário e disser "sim", "confirma", "quero", "agendar" → responda confirmando e use o formato exato:
+[AGENDAR] Nome: [nome] | Serviço: [serviço] | Profissional: [profissional] | Horário: [2026-02-20 10:00:00] [FIM]`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -24,37 +23,47 @@ Use formato simples para extrair dados quando confirmar: [AGENDAMENTO] Nome: ...
     const completion = await groq.chat.completions.create({
       messages,
       model: 'llama-3.3-70b-versatile',
-      temperature: 0.8,
+      temperature: 0.7,
     });
 
-    let reply = completion.choices[0]?.message?.content || "Desculpa meu amor, deu um errinho. Pode repetir? ❤️";
+    let reply = completion.choices[0]?.message?.content || "Desculpa meu amor...";
 
-    // Lógica simples: se a resposta tiver [AGENDAMENTO] ... [FIM], tenta salvar
-    const agendamentoMatch = reply.match(/\[AGENDAMENTO\]([\s\S]*?)\[FIM\]/);
-    if (agendamentoMatch) {
-      const dados = agendamentoMatch[1].trim();
-      // Parse básico (melhorar depois com regex ou Zod)
-      const nome = dados.match(/Nome: (.*)/)?.[1]?.trim();
-      const servico = dados.match(/Serviço: (.*)/)?.[1]?.trim();
-      const profissional = dados.match(/Profissional: (.*)/)?.[1]?.trim();
-      const horario = dados.match(/Horário: (.*)/)?.[1]?.trim();
+    // Detecta se é hora de agendar
+    const match = reply.match(/\[AGENDAR\]([\s\S]*?)\[FIM\]/);
+    if (match) {
+      const texto = match[1].trim();
+      const nome = texto.match(/Nome:\s*(.+?)(?=\s*\||$)/)?.[1]?.trim();
+      const servico = texto.match(/Serviço:\s*(.+?)(?=\s*\||$)/)?.[1]?.trim();
+      const profissional = texto.match(/Profissional:\s*(.+?)(?=\s*\||$)/)?.[1]?.trim();
+      const horarioStr = texto.match(/Horário:\s*(.+?)(?=\s*\||$)/)?.[1]?.trim();
 
-      if (nome && servico && profissional && horario) {
-        // Salva no Supabase (por enquanto sem IDs reais – vamos assumir IDs fixos ou buscar depois)
-        const { error } = await supabase.from('appointments').insert({
-          // Para MVP: usar IDs fixos ou buscar por nome (melhorar depois)
-          client_id: 'uuid-do-cliente-exemplo', // substitua depois
-          professional_id: 'uuid-do-profissional-exemplo',
-          service_id: 'uuid-do-servico-exemplo',
-          appointment_time: new Date(horario).toISOString(),
-          status: 'confirmed',
-          notes: `Agendado via chat: ${servico} com ${profissional}`
-        });
+      if (nome && servico && profissional && horarioStr) {
+        // Checa disponibilidade simples
+        const { data: existentes } = await supabase
+          .from('appointments')
+          .select('appointment_time')
+          .eq('professional_name', profissional);
 
-        if (!error) {
-          reply += "\n\nAgendamento salvo com sucesso! Te mando lembrete 24h antes. 💖";
+        const jaOcupado = existentes?.some(a => 
+          new Date(a.appointment_time).toISOString().slice(0,16) === new Date(horarioStr).toISOString().slice(0,16)
+        );
+
+        if (jaOcupado) {
+          reply = `Ai ${nome}, esse horário já está ocupado com a ${profissional}. Quer outro horário? ❤️`;
         } else {
-          reply += "\n\nSalvou aqui, mas deu um probleminha no banco. Pode confirmar de novo?";
+          const { error } = await supabase.from('appointments').insert({
+            client_name: nome,
+            service_name: servico,
+            professional_name: profissional,
+            appointment_time: horarioStr,
+            status: 'confirmed'
+          });
+
+          if (!error) {
+            reply = `Perfeito, meu amor! 💖\nAgendado para ${nome} - ${servico} com ${profissional} às ${new Date(horarioStr).toLocaleTimeString('pt-BR')}\n\nApareceu no dashboard! Te mando lembrete 24h antes.`;
+          } else {
+            reply = "Salvou aqui, mas deu um errinho no banco. Pode confirmar de novo?";
+          }
         }
       }
     }
@@ -63,6 +72,8 @@ Use formato simples para extrair dados quando confirmar: [AGENDAMENTO] Nome: ...
 
   } catch (error) {
     console.error(error);
-    return Response.json({ reply: "Ai meu amor, deu pau na conexão... Tenta mais tarde? 😘" });
+    return Response.json({ 
+      reply: "Só um minutinho viu?, deu um probleminha na conexão... Daqui a pouco tente novamente 😘" 
+    });
   }
 }
