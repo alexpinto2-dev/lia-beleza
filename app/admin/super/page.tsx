@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 // Client com permissões admin (só para criar usuários)
 const supabaseAdmin = createClient(
@@ -49,94 +54,106 @@ export default function SuperAdmin() {
   };
 
   const criarNovoSalao = async () => {
-    if (!nomeSalao.trim() || !subdominio.trim() || !emailDono.trim()) {
-      alert('Preencha nome do salão, subdomínio e email do dono');
+  if (!nomeSalao.trim() || !subdominio.trim() || !emailDono.trim()) {
+    alert('Preencha nome, subdomínio e email do dono');
+    return;
+  }
+
+  try {
+    // 1. Cria o tenant
+    const { data: tenant, error: tenantErr } = await supabase
+      .from('tenants')
+      .insert({
+        name: nomeSalao.trim(),
+        subdomain: subdominio.trim().toLowerCase(),
+        owner_email: emailDono.trim(),
+        phone: telefone.trim() || null,
+        status: 'active'
+      })
+      .select()
+      .single();
+
+    if (tenantErr || !tenant) {
+      console.error('Erro ao criar tenant:', tenantErr);
+      alert('Erro ao criar salão: ' + (tenantErr?.message || 'Verifique o console'));
       return;
     }
 
-    try {
-      // 1. Cria o tenant
-      const { data: tenant, error: tenantErr } = await supabase
-        .from('tenants')
-        .insert({
-          name: nomeSalao.trim(),
-          subdomain: subdominio.trim().toLowerCase(),
-          owner_email: emailDono.trim(),
-          phone: telefone.trim() || null,
-          status: 'active'
-        })
-        .select()
-        .single();
+    // 2. Gera senha aleatória
+    const senhaAleatoria = Math.random().toString(36).slice(-8);
 
-      if (tenantErr || !tenant) throw tenantErr || new Error('Falha ao criar tenant');
-
-      // 2. Gera senha aleatória
-      const senhaAleatoria = Math.random().toString(36).slice(-8);
-
-      // 3. Cria usuário dono
-      const { error: userErr } = await supabase
-        .from('tenant_users')
-        .insert({
-          tenant_id: tenant.id,
-          email: emailDono.trim(),
-          role: 'owner'
-        });
-
-      if (userErr) throw userErr;
-
-     // 4. Cria autenticação no Supabase Auth (usa client admin)
-const { error: authErr } = await supabaseAdmin.auth.admin.createUser({
-  email: emailDono.trim(),
-  password: senhaAleatoria,
-  email_confirm: true
-});
-
-      if (authErr) throw authErr;
-
-      // 5. Envia email com credenciais (via Resend)
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: 'Lia Beleza <no-reply@liabeleza.app>',
-          to: [emailDono.trim()],
-          subject: 'Bem-vindo ao Lia Beleza SaaS!',
-          html: `
-            <h1>Seu salão foi cadastrado!</h1>
-            <p>Olá! Seu salão <strong>${nomeSalao}</strong> já está ativo na plataforma.</p>
-            <p><strong>Login:</strong> ${emailDono}</p>
-            <p><strong>Senha temporária:</strong> ${senhaAleatoria}</p>
-            <p>Acesse agora: <a href="https://lia-beleza.vercel.app/salao/login">Entrar no painel</a></p>
-            <p>Recomendamos trocar a senha no primeiro acesso.</p>
-            <p>Qualquer dúvida, responda este email.</p>
-            <p>Abraços,<br>Equipe Lia Beleza</p>
-          `
-        })
+    // 3. Cria usuário dono no tenant_users
+    const { error: userErr } = await supabase
+      .from('tenant_users')
+      .insert({
+        tenant_id: tenant.id,
+        email: emailDono.trim(),
+        role: 'owner'
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        console.error('Erro no Resend:', errData);
-        alert('Salão criado, mas falha ao enviar email. Verifique o console.');
-      } else {
-        alert('Novo salão criado e email enviado!');
-      }
-
-      setModalOpen(false);
-      setNomeSalao('');
-      setSubdominio('');
-      setEmailDono('');
-      setTelefone('');
-      fetchTenants();
-    } catch (err) {
-      console.error('Erro ao criar salão:', err);
-      alert('Erro ao criar salão. Veja o console para detalhes.');
+    if (userErr) {
+      console.error('Erro ao criar tenant_user:', userErr);
+      alert('Salão criado, mas falha ao criar usuário interno. Verifique console.');
+      return;
     }
-  };
 
+    // 4. Cria autenticação no Supabase Auth (com client admin)
+    console.log('Tentando criar usuário Auth com email:', emailDono.trim());
+    const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+      email: emailDono.trim(),
+      password: senhaAleatoria,
+      email_confirm: true
+    });
+
+    if (authErr) {
+      console.error('Erro no createUser (Auth):', authErr);
+      alert('Salão criado, mas falha ao criar login Auth: ' + authErr.message);
+      return;
+    }
+
+    console.log('Usuário Auth criado com sucesso:', authData);
+
+    // 5. Envia email com credenciais
+    console.log('Tentando enviar email para:', emailDono.trim());
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Lia Beleza <no-reply@liabeleza.app>',
+        to: [emailDono.trim()],
+        subject: 'Bem-vindo ao Lia Beleza SaaS!',
+        html: `
+          <h1>Seu salão foi cadastrado!</h1>
+          <p>Olá! Seu salão <strong>${nomeSalao}</strong> já está ativo.</p>
+          <p><strong>Login:</strong> ${emailDono}</p>
+          <p><strong>Senha temporária:</strong> ${senhaAleatoria}</p>
+          <p>Acesse: <a href="https://lia-beleza.vercel.app/salao/login">Entrar no painel</a></p>
+          <p>Troque a senha no primeiro acesso.</p>
+          <p>Abraços,<br>Equipe Lia Beleza</p>
+        `
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      console.error('Erro no Resend:', errData);
+      alert('Salão e login criados, mas falha no email. Verifique console.');
+    } else {
+      console.log('Email enviado com sucesso!');
+      alert('Novo salão criado, usuário gerado e email enviado!');
+    }
+
+    setModalOpen(false);
+    limparFormulario();
+    fetchTenants();
+  } catch (err) {
+    console.error('Exceção geral ao criar salão:', err);
+    alert('Erro inesperado ao criar salão. Veja o console para detalhes.');
+  }
+};
   // RETURN ESTÁ AQUI (nível principal!)
   return (
     <div className="p-8">
