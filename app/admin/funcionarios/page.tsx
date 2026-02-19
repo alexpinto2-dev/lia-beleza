@@ -32,37 +32,73 @@ export default function Funcionarios() {
     }
     setLoading(false);
   };
+const salvarFuncionario = async () => {
+  if (!nome.trim()) {
+    alert('O nome é obrigatório');
+    return;
+  }
 
-  const salvarFuncionario = async () => {
-    if (!nome.trim()) return;
+  try {
+    let error;
 
     if (editing) {
-      const { error } = await supabase
+      ({ error } = await supabase
         .from('professionals')
-        .update({ name: nome, color: cor })
-        .eq('id', editing.id);
-
-      if (error) {
-        alert('Erro ao atualizar funcionário');
-        return;
-      }
+        .update({ name: nome.trim(), color: cor.trim() })
+        .eq('id', editing.id));
     } else {
-      const { error } = await supabase
+      ({ error } = await supabase
         .from('professionals')
-        .insert({ name: nome, color: cor });
-
-      if (error) {
-        alert('Erro ao criar funcionário');
-        return;
-      }
+        .insert({ name: nome.trim(), color: cor.trim() }));
     }
 
+    if (error) {
+      console.error('Erro Supabase ao salvar funcionário:', error);
+      alert(`Erro ao salvar: ${error.message || 'Verifique o console'}`);
+      return;
+    }
+
+    alert(editing ? 'Funcionário atualizado!' : 'Funcionário criado com sucesso!');
     setModalOpen(false);
     setEditing(null);
     setNome('');
     setCor('#FF69B4');
-    fetchFuncionarios();  // recarrega a lista
-  };
+    fetchFuncionarios();
+  } catch (err) {
+    console.error('Exceção ao salvar:', err);
+    alert('Erro inesperado. Veja o console (F12) para detalhes.');
+  }
+};
+  //const salvarFuncionario = async () => {
+  //if (!nome.trim()) return;
+//
+  //  if (editing) {
+    //  const { error } = await supabase
+      //  .from('professionals')
+        //.update({ name: nome, color: cor })
+        //.eq('id', editing.id);
+//
+  //    if (error) {
+    //    alert('Erro ao atualizar funcionário');
+      //  return;
+      //}
+    //} else {
+      //const { error } = await supabase
+        //.from('professionals')
+        //.insert({ name: nome, color: cor });
+//
+  //    if (error) {
+    //    alert('Erro ao criar funcionário');
+      //  return;
+      //}
+    //}
+
+    //setModalOpen(false);
+    //setEditing(null);
+    //setNome('');
+    //setCor('#FF69B4');
+    //fetchFuncionarios();  // recarrega a lista
+  //};
 
   const excluir = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este funcionário?')) return;
