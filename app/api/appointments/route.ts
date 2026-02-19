@@ -15,14 +15,11 @@ export async function GET() {
       `)
       .order('appointment_time', { ascending: true });
 
-    if (error) {
-      console.error(error);
-      return NextResponse.json([], { status: 500 });
-    }
+    if (error) throw error;
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json([], { status: 500 });
+    console.error('Erro ao buscar agendamentos:', error);
+    return NextResponse.json({ error: 'Falha ao carregar agendamentos' }, { status: 500 });
   }
 }
