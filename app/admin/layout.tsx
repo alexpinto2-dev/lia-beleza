@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Calendar, Users, Scissors, LogOut, LayoutDashboard } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Calendar, Users, Scissors, LogOut, LayoutDashboard, ShieldCheck } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -10,6 +10,9 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isSuperAdmin = true; // ← Por enquanto só você tem acesso (depois vamos deixar dinâmico)
 
   const handleLogout = () => {
     localStorage.removeItem('isAdmin');
@@ -26,30 +29,38 @@ export default function AdminLayout({
           </div>
           <div>
             <p className="font-bold text-2xl text-pink-600">Lia Beleza</p>
-            <p className="text-xs text-gray-500">Painel Administrativo</p>
+            <p className="text-xs text-gray-500">SaaS para Salões</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-2">
-          <Link href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 text-gray-700 hover:text-pink-600 transition">
+        <nav className="flex-1 space-y-1">
+          <Link href="/admin" className={`flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 transition ${pathname === '/admin' ? 'bg-pink-100 text-pink-600' : 'text-gray-700'}`}>
             <LayoutDashboard className="w-5 h-5" />
-            <span className="font-medium">Dashboard / Agenda</span>
+            <span className="font-medium">Dashboard</span>
           </Link>
 
-          <Link href="/admin/agendamentos" className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 text-gray-700 hover:text-pink-600 transition">
+          <Link href="/admin/agendamentos" className={`flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 transition ${pathname === '/admin/agendamentos' ? 'bg-pink-100 text-pink-600' : 'text-gray-700'}`}>
             <Calendar className="w-5 h-5" />
             <span className="font-medium">Agendamentos</span>
           </Link>
 
-          <Link href="/admin/funcionarios" className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 text-gray-700 hover:text-pink-600 transition">
+          <Link href="/admin/funcionarios" className={`flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 transition ${pathname === '/admin/funcionarios' ? 'bg-pink-100 text-pink-600' : 'text-gray-700'}`}>
             <Users className="w-5 h-5" />
             <span className="font-medium">Funcionários</span>
           </Link>
 
-          <Link href="/admin/servicos" className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 text-gray-700 hover:text-pink-600 transition">
+          <Link href="/admin/servicos" className={`flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 transition ${pathname === '/admin/servicos' ? 'bg-pink-100 text-pink-600' : 'text-gray-700'}`}>
             <Scissors className="w-5 h-5" />
             <span className="font-medium">Serviços</span>
           </Link>
+
+          {/* Link do Super Admin - só aparece para você */}
+          {isSuperAdmin && (
+            <Link href="/admin/super" className={`flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-pink-50 transition ${pathname === '/admin/super' ? 'bg-pink-100 text-pink-600' : 'text-gray-700'}`}>
+              <ShieldCheck className="w-5 h-5" />
+              <span className="font-medium">Super Admin</span>
+            </Link>
+          )}
         </nav>
 
         <button
@@ -62,7 +73,7 @@ export default function AdminLayout({
       </div>
 
       {/* Conteúdo principal */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-auto">
         {children}
       </div>
     </div>
