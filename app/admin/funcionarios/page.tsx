@@ -57,10 +57,6 @@ export default function Funcionarios() {
     if (error) alert('Erro ao excluir');
     else fetchFuncionarios();
   };
-
-  // ... (o resto do modal e tabela continua igual, só chame fetchFuncionarios após ações)
-  // Mantenha o return com loading, modal e tabela como estava
-  // Substitua o setFuncionarios fake por fetchFuncionarios() nas ações
 }
 
   return (
