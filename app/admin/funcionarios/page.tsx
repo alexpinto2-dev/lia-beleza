@@ -88,7 +88,13 @@ export default function Funcionarios() {
     setCor(func.color);
     setModalOpen(true);
   };
-
+const testeSupabase = async () => {
+  const { data, error } = await supabase.from('professionals').select('count(*)');
+  console.log('Teste Supabase:', data, error);
+};
+useEffect(() => {
+  testeSupabase();
+}, []);
   // ────────────────────────────────────────────────
   // O RETURN DEVE ESTAR AQUI (nível principal da página)
   // ────────────────────────────────────────────────
