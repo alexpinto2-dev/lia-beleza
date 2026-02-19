@@ -25,39 +25,73 @@ export default function Funcionarios() {
   const fetchFuncionarios = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('professionals').select('id, name, color');
-    if (error) console.error(error);
-    else setFuncionarios(data || []);
+    if (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    } else {
+      setFuncionarios(data || []);
+    }
     setLoading(false);
   };
 
   const salvarFuncionario = async () => {
-    if (!nome) return;
+    if (!nome.trim()) return;
 
     if (editing) {
       const { error } = await supabase
         .from('professionals')
         .update({ name: nome, color: cor })
         .eq('id', editing.id);
-      if (error) alert('Erro ao atualizar');
+
+      if (error) {
+        alert('Erro ao atualizar funcionário');
+        return;
+      }
     } else {
       const { error } = await supabase
         .from('professionals')
         .insert({ name: nome, color: cor });
-      if (error) alert('Erro ao criar');
+
+      if (error) {
+        alert('Erro ao criar funcionário');
+        return;
+      }
     }
 
     setModalOpen(false);
     setEditing(null);
-    fetchFuncionarios();
+    setNome('');
+    setCor('#FF69B4');
+    fetchFuncionarios();  // recarrega a lista
   };
 
   const excluir = async (id: string) => {
-    if (!confirm('Excluir funcionário?')) return;
+    if (!confirm('Tem certeza que deseja excluir este funcionário?')) return;
+
     const { error } = await supabase.from('professionals').delete().eq('id', id);
-    if (error) alert('Erro ao excluir');
-    else fetchFuncionarios();
+    if (error) {
+      alert('Erro ao excluir');
+    } else {
+      fetchFuncionarios();
+    }
   };
-}
+
+  const abrirModalNovo = () => {
+    setEditing(null);
+    setNome('');
+    setCor('#FF69B4');
+    setModalOpen(true);
+  };
+
+  const abrirModalEditar = (func: Funcionario) => {
+    setEditing(func);
+    setNome(func.name);
+    setCor(func.color);
+    setModalOpen(true);
+  };
+
+  // ────────────────────────────────────────────────
+  // O RETURN DEVE ESTAR AQUI (nível principal da página)
+  // ────────────────────────────────────────────────
   return (
     <div className="p-8">
       <div className="max-w-6xl mx-auto">
@@ -67,7 +101,7 @@ export default function Funcionarios() {
             <p className="text-gray-600">Gerencie sua equipe</p>
           </div>
           <button 
-            onClick={() => { setEditing(null); setNome(''); setCor('#FF69B4'); setModalOpen(true); }}
+            onClick={abrirModalNovo}
             className="flex items-center gap-3 bg-pink-600 text-white px-8 py-4 rounded-2xl font-semibold hover:bg-pink-700"
           >
             <Plus className="w-5 h-5" />
@@ -75,43 +109,47 @@ export default function Funcionarios() {
           </button>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-zinc-50 border-b">
-              <tr>
-                <th className="text-left p-6 font-medium">Funcionário</th>
-                <th className="text-left p-6 font-medium">Cor no Calendário</th>
-                <th className="text-right p-6 font-medium">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {funcionarios.map(func => (
-                <tr key={func.id} className="hover:bg-zinc-50">
-                  <td className="p-6 font-medium flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-2xl" style={{ backgroundColor: func.color }}></div>
-                    {func.name}
-                  </td>
-                  <td className="p-6">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg" style={{ backgroundColor: func.color }}></div>
-                      {func.color}
-                    </div>
-                  </td>
-                  <td className="p-6 text-right space-x-3">
-                    <button onClick={() => editar(func)} className="text-blue-600 hover:text-blue-700">
-                      <Edit2 className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => excluir(func.id)} className="text-red-600 hover:text-red-700">
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
+        {loading ? (
+          <p className="text-center py-12">Carregando funcionários...</p>
+        ) : (
+          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-zinc-50 border-b">
+                <tr>
+                  <th className="text-left p-6 font-medium">Funcionário</th>
+                  <th className="text-left p-6 font-medium">Cor no Calendário</th>
+                  <th className="text-right p-6 font-medium">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y">
+                {funcionarios.map(func => (
+                  <tr key={func.id} className="hover:bg-zinc-50">
+                    <td className="p-6 font-medium flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-2xl" style={{ backgroundColor: func.color }}></div>
+                      {func.name}
+                    </td>
+                    <td className="p-6">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg" style={{ backgroundColor: func.color }}></div>
+                        {func.color}
+                      </div>
+                    </td>
+                    <td className="p-6 text-right space-x-3">
+                      <button onClick={() => abrirModalEditar(func)} className="text-blue-600 hover:text-blue-700">
+                        <Edit2 className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => excluir(func.id)} className="text-red-600 hover:text-red-700">
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-        {/* Modal de Cadastro/Edição */}
+        {/* Modal */}
         {modalOpen && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
             <div className="bg-white rounded-3xl p-8 w-full max-w-md">
